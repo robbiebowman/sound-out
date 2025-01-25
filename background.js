@@ -18,10 +18,60 @@ browser.contextMenus.create({
   contexts: ["browser_action"]
 });
 
-// Add context menu click handler
+browser.contextMenus.create({
+  id: "toggle-managed",
+  title: "Tab is managed",
+  type: "checkbox",
+  contexts: ["browser_action"]
+});
+
+browser.contextMenus.create({
+  id: "keep-muted",
+  title: "Keep muted",
+  contexts: ["browser_action"]
+});
+
+browser.contextMenus.create({
+  id: "keep-unmuted",
+  title: "Keep unmuted",
+  contexts: ["browser_action"]
+});
+
+// Update the context menu click handler
 browser.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "open-options") {
     browser.runtime.openOptionsPage();
+  } else if (info.menuItemId === "toggle-managed") {
+    // Simulate extension icon click
+    const hostname = getHostname(tab.url);
+    const wasManaged = isTabManaged(hostname, tab.id);
+    
+    if (wasManaged) {
+      if (state.muteSpecificOnly) {
+        state.includedTabs.delete(tab.id);
+      }
+      state.excludedTabs.add(tab.id);
+      browser.tabs.update(tab.id, { muted: false });
+    } else {
+      state.excludedTabs.delete(tab.id);
+      if (state.muteSpecificOnly) {
+        state.includedTabs.add(tab.id);
+      }
+      updateTabMutes(tab.id);
+    }
+    
+    updateIcon(tab.id);
+    updateContextMenuState(tab.id);
+  } else if (info.menuItemId === "keep-muted") {
+    const hostname = getHostname(tab.url);
+    if (!isTabManaged(hostname, tab.id)) {
+      browser.tabs.update(tab.id, { muted: true });
+    }
+  } else if (info.menuItemId === "keep-unmuted") {
+    const hostname = getHostname(tab.url);
+    if (!isTabManaged(hostname, tab.id)) {
+      browser.tabs.update(tab.id, { muted: false });
+    }
   }
 });
 
@@ -104,6 +154,7 @@ function updateIcon(tabId) {
 browser.tabs.onActivated.addListener(({ tabId }) => {
   updateTabMutes(tabId);
   updateIcon(tabId);
+  updateContextMenuState(tabId);
 });
 
 // Update the onCreated listener
@@ -134,6 +185,7 @@ browser.tabs.onCreated.addListener((tab) => {
 browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.url) {
     updateIcon(tabId);
+    updateContextMenuState(tabId);
   }
 });
 
@@ -142,6 +194,7 @@ browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
   if (tabs.length > 0) {
     updateTabMutes(tabs[0].id);
     updateIcon(tabs[0].id);
+    updateContextMenuState(tabs[0].id);
   }
 });
 
@@ -163,7 +216,26 @@ function domainMatches(hostname, exclusions) {
     });
   }
 
-// Modify the browserAction click handler
+// Add function to update context menu items' enabled state
+function updateContextMenuState(tabId) {
+  browser.tabs.get(tabId).then((tab) => {
+    const hostname = getHostname(tab.url);
+    const isManaged = isTabManaged(hostname, tabId);
+    
+    browser.contextMenus.update("toggle-managed", {
+      checked: isManaged
+    });
+    
+    browser.contextMenus.update("keep-muted", {
+      enabled: !isManaged
+    });
+    browser.contextMenus.update("keep-unmuted", {
+      enabled: !isManaged
+    });
+  });
+}
+
+// Add back the browserAction click handler
 browser.browserAction.onClicked.addListener((tab) => {
   const hostname = getHostname(tab.url);
   const wasManaged = isTabManaged(hostname, tab.id);
@@ -183,9 +255,10 @@ browser.browserAction.onClicked.addListener((tab) => {
   }
   
   updateIcon(tab.id);
+  updateContextMenuState(tab.id);
 });
 
-// Add cleanup for both sets when tabs are closed
+// Add back cleanup for both sets when tabs are closed
 browser.tabs.onRemoved.addListener((tabId) => {
   state.excludedTabs.delete(tabId);
   state.includedTabs.delete(tabId);

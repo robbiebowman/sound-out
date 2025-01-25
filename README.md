@@ -15,6 +15,12 @@ Sound Out automatically manages audio across browser tabs to prevent multiple ta
 - Orange icon: tab is managed
 - Grey icon: tab is unmanaged
 
+### Manual Control Options
+Right-click the extension icon to access:
+- **Keep muted**: Force a tab to stay muted when it's not being managed
+- **Keep unmuted**: Force a tab to stay unmuted when it's not being managed
+- **Options**: Access extension settings
+
 ## Usage Examples
 
 ### Scenario 1: Music While Browsing (spotify.com)
@@ -32,6 +38,11 @@ Sound Out automatically manages audio across browser tabs to prevent multiple ta
 1. Click extension icon to toggle management
 2. Perfect for temporarily keeping a video playing while browsing
 3. Tab returns to normal management when closed
+
+### Scenario 4: Manual Audio Control
+1. Right-click extension icon on an unmanaged tab
+2. Select "Keep muted" or "Keep unmuted" to set a fixed state
+3. Useful for tabs you want to control independently
 
 ## Configuration
 - Right-click extension icon → Options
