@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const saveButton = document.getElementById("save-button");
     const exclusionSection = document.getElementById("exclusion-section");
     const inclusionSection = document.getElementById("inclusion-section");
+    const saveIndicator = document.getElementById("save-indicator");
   
     // Load current settings
     browser.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
@@ -16,19 +17,22 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (result.muteSpecificOnly) {
         muteModeToggle.checked = result.muteSpecificOnly;
-        exclusionSection.style.display = "none";
-        inclusionSection.style.display = "block";
+        exclusionSection.classList.add("inactive");
+        inclusionSection.classList.remove("inactive");
+      } else {
+        exclusionSection.classList.remove("inactive");
+        inclusionSection.classList.add("inactive");
       }
     });
 
-    // Toggle visibility of sections based on checkbox
+    // Update section visibility based on checkbox
     muteModeToggle.addEventListener("change", () => {
       if (muteModeToggle.checked) {
-        exclusionSection.style.display = "none";
-        inclusionSection.style.display = "block";
+        exclusionSection.classList.add("inactive");
+        inclusionSection.classList.remove("inactive");
       } else {
-        exclusionSection.style.display = "block";
-        inclusionSection.style.display = "none";
+        exclusionSection.classList.remove("inactive");
+        inclusionSection.classList.add("inactive");
       }
     });
   
@@ -51,7 +55,13 @@ document.addEventListener("DOMContentLoaded", () => {
         includedDomains,
         muteSpecificOnly: muteModeToggle.checked
       }).then(() => {
-        alert("Settings saved!");
+        // Show save indicator
+        saveIndicator.classList.add("show");
+        
+        // Hide it after 2 seconds
+        setTimeout(() => {
+          saveIndicator.classList.remove("show");
+        }, 2000);
       });
     });
   });
