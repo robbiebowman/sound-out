@@ -4,6 +4,20 @@ let muteSpecificOnly = false;
 let excludedTabs = new Set();
 let includedTabs = new Set();
 
+// Create context menu when extension loads
+browser.contextMenus.create({
+  id: "open-options",
+  title: "Options",
+  contexts: ["browser_action"]
+});
+
+// Add context menu click handler
+browser.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "open-options") {
+    browser.runtime.openOptionsPage();
+  }
+});
+
 // Load settings from storage when extension starts
 browser.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
   excludedDomains = result.excludedDomains || [];

@@ -5,7 +5,8 @@
     "description": "Automatically mutes all tabs that are not currently active, except for user-defined sites.",
     "permissions": [
       "tabs",
-      "storage" 
+      "storage",
+      "contextMenus"
     ],
     "background": {
       "scripts": ["background.js"]
