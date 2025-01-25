@@ -1,3 +1,7 @@
+if (typeof browser === 'undefined') {
+  var browser = chrome;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const excludedDomainsTextarea = document.getElementById("excluded-domains");
     const includedDomainsTextarea = document.getElementById("included-domains");

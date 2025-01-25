@@ -1,6 +1,6 @@
 # Sound Out - Browser Tab Audio Manager
 
-Sound Out automatically manages audio across browser tabs to prevent multiple tabs from playing sound simultaneously.
+Sound Out automatically manages audio across browser tabs to prevent multiple tabs from playing sound simultaneously. Works in both Firefox and Chrome browsers.
 
 ## Features
 
@@ -37,3 +37,7 @@ Sound Out automatically manages audio across browser tabs to prevent multiple ta
 - Right-click extension icon → Options
 - Switch modes and manage domain lists
 - Domain rules include subdomains automatically 
+
+## Browser Support
+- Firefox: Install from Firefox Add-ons
+- Chrome: Install from Chrome Web Store 

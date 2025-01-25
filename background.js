@@ -1,3 +1,7 @@
+if (typeof browser === 'undefined') {
+  var browser = chrome;
+}
+
 let excludedDomains = [];
 let includedDomains = [];
 let muteSpecificOnly = false;
