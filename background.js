@@ -1,6 +1,8 @@
 let excludedDomains = [];
 let includedDomains = [];
 let muteSpecificOnly = false;
+let excludedTabs = new Set();
+let includedTabs = new Set();
 
 // Load settings from storage when extension starts
 browser.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
@@ -46,30 +48,33 @@ function muteAllExcept(activeTabId) {
   browser.tabs.query({}).then((tabs) => {
     tabs.forEach((tab) => {
       if (!tab.id || !tab.url) return;
-
+      
       const hostname = getHostname(tab.url);
+      const isManaged = isTabManaged(hostname, tab.id);
 
-      if (muteSpecificOnly) {
-        // Only manage tabs that are in the inclusion list
-        if (domainMatches(hostname, includedDomains)) {
-          browser.tabs.update(tab.id, { 
-            muted: tab.id !== activeTabId 
-          });
-        }
-        // Don't touch other tabs
-      } else {
-        // In exclusion mode, only manage non-excluded domains
-        if (!domainMatches(hostname, excludedDomains)) {
-          browser.tabs.update(tab.id, { muted: tab.id !== activeTabId });
-        }
-        // Don't touch excluded domains
+      // Skip tabs that aren't managed - let user control their mute state
+      if (!isManaged) {
+        return;
       }
+
+      // For managed tabs, mute if not active
+      browser.tabs.update(tab.id, { 
+        muted: tab.id !== activeTabId 
+      });
     });
   });
 }
 
-// Add this function after the getHostname function
-function isTabManaged(hostname) {
+// Modify isTabManaged to check both exclusions and inclusions
+function isTabManaged(hostname, tabId) {
+  if (excludedTabs.has(tabId)) {
+    return false;
+  }
+  
+  if (includedTabs.has(tabId)) {
+    return true;
+  }
+  
   if (muteSpecificOnly) {
     return domainMatches(hostname, includedDomains);
   } else {
@@ -81,7 +86,7 @@ function isTabManaged(hostname) {
 function updateIcon(tabId) {
   browser.tabs.get(tabId).then((tab) => {
     const hostname = getHostname(tab.url);
-    const managed = isTabManaged(hostname);
+    const managed = isTabManaged(hostname, tabId);
     
     browser.browserAction.setIcon({
       path: {
@@ -156,8 +161,43 @@ function domainMatches(hostname, exclusions) {
     });
   }
 
-// Add click handler for the toolbar icon
-browser.browserAction.onClicked.addListener(() => {
-  browser.runtime.openOptionsPage();
+// Modify the browserAction click handler
+browser.browserAction.onClicked.addListener((tab) => {
+  const hostname = getHostname(tab.url);
+  const wasManaged = isTabManaged(hostname, tab.id);
+  
+  if (wasManaged) {
+    if (muteSpecificOnly && !domainMatches(hostname, includedDomains)) {
+      // In inclusion mode, if this tab was only managed because it was in includedTabs
+      includedTabs.delete(tab.id);
+    } else {
+      // Normal exclusion case
+      excludedTabs.add(tab.id);
+    }
+    // Unmute initially when excluding a tab
+    browser.tabs.update(tab.id, { muted: false });
+  } else {
+    if (muteSpecificOnly && !domainMatches(hostname, includedDomains)) {
+      // In inclusion mode, if this tab isn't in the domain rules, add it to includedTabs
+      includedTabs.add(tab.id);
+    } else {
+      // Normal inclusion case - remove from excludedTabs
+      excludedTabs.delete(tab.id);
+    }
+    // Reapply muting rules when re-enabling management
+    browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+      if (tabs[0]) {
+        muteAllExcept(tabs[0].id);
+      }
+    });
+  }
+  
+  updateIcon(tab.id);
+});
+
+// Add cleanup for both sets when tabs are closed
+browser.tabs.onRemoved.addListener((tabId) => {
+  excludedTabs.delete(tabId);
+  includedTabs.delete(tabId);
 });
   
