@@ -1,0 +1,30 @@
+{
+    "manifest_version": 2,
+    "name": "Sound Out",
+    "version": "1.0",
+    "description": "Automatically mutes all tabs that are not currently active, except for user-defined sites.",
+    "permissions": [
+      "tabs",
+      "storage" 
+    ],
+    "background": {
+      "scripts": ["background.js"]
+    },
+    "options_ui": {
+      "page": "options.html",
+      "open_in_tab": true
+    },
+    "icons": {
+      "16": "icons/icon_on16.png",
+      "32": "icons/icon_on32.png",
+      "48": "icons/icon_on48.png",
+      "128": "icons/icon_on128.png"
+    },
+    "browser_action": {
+      "default_icon": {
+        "16": "icons/icon_off16.png",
+        "32": "icons/icon_off32.png"
+      },
+      "default_title": "Sound Out"
+    }
+}

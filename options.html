@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mute Non-Active Tabs - Options</title>
+</head>
+<body>
+  <h1>Mute Non-Active Tabs - Options</h1>
+  
+  <div>
+    <label>
+      <input type="checkbox" id="mute-mode-toggle">
+      Only mute specific domains (when checked) instead of muting everything by default
+    </label>
+  </div>
+  
+  <div id="exclusion-section">
+    <h2>Never Mute These Domains:</h2>
+    <p>Enter a list of domains that should never be muted. One domain per line, e.g.:</p>
+    <pre>youtube.com
+soundcloud.com</pre>
+    <textarea id="excluded-domains" rows="8" cols="40"></textarea>
+  </div>
+
+  <div id="inclusion-section" style="display: none;">
+    <h2>Only Mute These Domains:</h2>
+    <p>Enter a list of domains that should be muted when inactive. One domain per line, e.g.:</p>
+    <pre>youtube.com
+netflix.com</pre>
+    <textarea id="included-domains" rows="8" cols="40"></textarea>
+  </div>
+  
+  <br /><br />
+  <button id="save-button">Save</button>
+  
+  <script src="options.js"></script>
+</body>
+</html>
