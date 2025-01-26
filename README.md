@@ -2,6 +2,11 @@
 
 Sound Out automatically manages audio across browser tabs to prevent multiple tabs from playing sound simultaneously. Works in both Firefox and Chrome browsers.
 
+## Installation
+
+- [Install for Firefox](https://addons.mozilla.org/en-US/firefox/addon/sound-out/)
+- [Install for Chrome](https://chromewebstore.google.com/detail/emgjfabfplbjfndkgodlkfhnajagobme)
+
 ## Features
 
 - Automatically mutes background tabs while keeping active tab unmuted
@@ -61,5 +66,5 @@ This will create the appropriate `manifest.json` file for your target browser.
 - Domain rules include subdomains automatically 
 
 ## Browser Support
-- Firefox: Install from Firefox Add-ons
-- Chrome: Install from Chrome Web Store 
+- Firefox: [Install from Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/sound-out/)
+- Chrome: [Install from Chrome Web Store](https://chromewebstore.google.com/detail/emgjfabfplbjfndkgodlkfhnajagobme) 
