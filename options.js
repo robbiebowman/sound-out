@@ -1,7 +1,3 @@
-if (typeof browser === 'undefined') {
-  var browser = chrome;
-}
-
 document.addEventListener("DOMContentLoaded", () => {
     const excludedDomainsTextarea = document.getElementById("excluded-domains");
     const includedDomainsTextarea = document.getElementById("included-domains");
@@ -12,7 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const saveIndicator = document.getElementById("save-indicator");
   
     // Load current settings
-    browser.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
+    chrome.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
       if (result.excludedDomains) {
         excludedDomainsTextarea.value = result.excludedDomains.join("\n");
       }
@@ -54,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .filter(d => d.length > 0);
   
       // Save to storage
-      browser.storage.local.set({ 
+      chrome.storage.local.set({ 
         excludedDomains,
         includedDomains,
         muteSpecificOnly: muteModeToggle.checked

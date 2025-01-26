@@ -21,6 +21,17 @@ Right-click the extension icon to access:
 - **Keep unmuted**: Force a tab to stay unmuted when it's not being managed
 - **Options**: Access extension settings
 
+## Building the Extension
+
+Due to differences in how Firefox and Chrome handle Manifest V3, you'll need to build the extension specifically for each browser:
+
+1. Make sure you have Node.js installed
+2. Run one of the following commands:
+   - For Chrome: `node build.js chrome`
+   - For Firefox: `node build.js firefox`
+
+This will create the appropriate `manifest.json` file for your target browser.
+
 ## Usage Examples
 
 ### Scenario 1: Music While Browsing (spotify.com)

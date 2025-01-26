@@ -1,7 +1,3 @@
-if (typeof browser === 'undefined') {
-  var browser = chrome;
-}
-
 // State management
 let state = {
   excludedDomains: [],
@@ -11,36 +7,46 @@ let state = {
   includedTabs: new Set()
 };
 
-// Create context menu when extension loads
-browser.contextMenus.create({
-  id: "open-options",
-  title: "Options",
-  contexts: ["browser_action"]
-});
+// Initialize the extension when the service worker starts
+chrome.runtime.onInstalled.addListener(() => {
+  // Create context menu items
+  chrome.contextMenus.create({
+    id: "open-options",
+    title: "Options",
+    contexts: ["action"]
+  });
 
-browser.contextMenus.create({
-  id: "toggle-managed",
-  title: "Tab is managed",
-  type: "checkbox",
-  contexts: ["browser_action"]
-});
+  chrome.contextMenus.create({
+    id: "toggle-managed",
+    title: "Tab is managed",
+    type: "checkbox",
+    contexts: ["action"]
+  });
 
-browser.contextMenus.create({
-  id: "keep-muted",
-  title: "Keep muted",
-  contexts: ["browser_action"]
-});
+  chrome.contextMenus.create({
+    id: "keep-muted",
+    title: "Keep muted",
+    contexts: ["action"]
+  });
 
-browser.contextMenus.create({
-  id: "keep-unmuted",
-  title: "Keep unmuted",
-  contexts: ["browser_action"]
+  chrome.contextMenus.create({
+    id: "keep-unmuted",
+    title: "Keep unmuted",
+    contexts: ["action"]
+  });
+
+  // Load initial state
+  chrome.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
+    state.excludedDomains = result.excludedDomains || [];
+    state.includedDomains = result.includedDomains || [];
+    state.muteSpecificOnly = result.muteSpecificOnly || false;
+  });
 });
 
 // Update the context menu click handler
-browser.contextMenus.onClicked.addListener((info, tab) => {
+chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "open-options") {
-    browser.runtime.openOptionsPage();
+    chrome.runtime.openOptionsPage();
   } else if (info.menuItemId === "toggle-managed") {
     // Simulate extension icon click
     const hostname = getHostname(tab.url);
@@ -51,7 +57,7 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
         state.includedTabs.delete(tab.id);
       }
       state.excludedTabs.add(tab.id);
-      browser.tabs.update(tab.id, { muted: false });
+      chrome.tabs.update(tab.id, { muted: false });
     } else {
       state.excludedTabs.delete(tab.id);
       if (state.muteSpecificOnly) {
@@ -65,30 +71,23 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
   } else if (info.menuItemId === "keep-muted") {
     const hostname = getHostname(tab.url);
     if (!isTabManaged(hostname, tab.id)) {
-      browser.tabs.update(tab.id, { muted: true });
+      chrome.tabs.update(tab.id, { muted: true });
     }
   } else if (info.menuItemId === "keep-unmuted") {
     const hostname = getHostname(tab.url);
     if (!isTabManaged(hostname, tab.id)) {
-      browser.tabs.update(tab.id, { muted: false });
+      chrome.tabs.update(tab.id, { muted: false });
     }
   }
 });
 
-// Load settings from storage
-browser.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
-  state.excludedDomains = result.excludedDomains || [];
-  state.includedDomains = result.includedDomains || [];
-  state.muteSpecificOnly = result.muteSpecificOnly || false;
-});
-
 // Listen for changes in storage
-browser.storage.onChanged.addListener((changes, area) => {
+chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local") {
     Object.entries(changes).forEach(([key, { newValue }]) => {
       state[key] = newValue;
     });
-    browser.tabs.query({ active: true, currentWindow: true })
+    chrome.tabs.query({ active: true, currentWindow: true })
       .then(tabs => tabs[0] && updateTabMutes(tabs[0].id));
   }
 });
@@ -123,13 +122,13 @@ function isTabManaged(hostname, tabId) {
 
 // Core functionality: update tab mute states
 function updateTabMutes(activeTabId) {
-  browser.tabs.query({}).then((tabs) => {
+  chrome.tabs.query({}).then((tabs) => {
     tabs.forEach((tab) => {
       if (!tab.id || !tab.url) return;
       
       const hostname = getHostname(tab.url);
       if (isTabManaged(hostname, tab.id)) {
-        browser.tabs.update(tab.id, { muted: tab.id !== activeTabId });
+        chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
       }
     });
   });
@@ -137,10 +136,10 @@ function updateTabMutes(activeTabId) {
 
 // UI feedback: update extension icon
 function updateIcon(tabId) {
-  browser.tabs.get(tabId).then((tab) => {
+  chrome.tabs.get(tabId).then((tab) => {
     const hostname = getHostname(tab.url);
     const iconState = isTabManaged(hostname, tabId) ? 'on' : 'off';
-    browser.browserAction.setIcon({
+    chrome.action.setIcon({
       path: {
         16: `icons/icon_${iconState}16.png`,
         32: `icons/icon_${iconState}32.png`
@@ -151,22 +150,22 @@ function updateIcon(tabId) {
 }
 
 // Event handlers
-browser.tabs.onActivated.addListener(({ tabId }) => {
+chrome.tabs.onActivated.addListener(({ tabId }) => {
   updateTabMutes(tabId);
   updateIcon(tabId);
   updateContextMenuState(tabId);
 });
 
 // Update the onCreated listener
-browser.tabs.onCreated.addListener((tab) => {
-  browser.tabs.query({ active: true, currentWindow: true }).then((activeTabs) => {
+chrome.tabs.onCreated.addListener((tab) => {
+  chrome.tabs.query({ active: true, currentWindow: true }).then((activeTabs) => {
     const activeTabId = activeTabs[0].id;
     const hostname = getHostname(tab.url);
 
     if (state.muteSpecificOnly) {
       // Only manage new tabs that are in the inclusion list
       if (isTabManaged(hostname, tab.id)) {
-        browser.tabs.update(tab.id, { 
+        chrome.tabs.update(tab.id, { 
           muted: tab.id !== activeTabId 
         });
       }
@@ -174,7 +173,7 @@ browser.tabs.onCreated.addListener((tab) => {
     } else {
       // Only manage new non-excluded tabs
       if (!isTabManaged(hostname, tab.id)) {
-        browser.tabs.update(tab.id, { muted: tab.id !== activeTabId });
+        chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
       }
       // Don't touch excluded domains
     }
@@ -182,7 +181,7 @@ browser.tabs.onCreated.addListener((tab) => {
 });
 
 // Add listeners for tab URL changes and updates
-browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.url) {
     updateIcon(tabId);
     updateContextMenuState(tabId);
@@ -190,7 +189,7 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // Update icon for active tab when extension starts
-browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
   if (tabs.length > 0) {
     updateTabMutes(tabs[0].id);
     updateIcon(tabs[0].id);
@@ -218,25 +217,25 @@ function domainMatches(hostname, exclusions) {
 
 // Add function to update context menu items' enabled state
 function updateContextMenuState(tabId) {
-  browser.tabs.get(tabId).then((tab) => {
+  chrome.tabs.get(tabId).then((tab) => {
     const hostname = getHostname(tab.url);
     const isManaged = isTabManaged(hostname, tabId);
     
-    browser.contextMenus.update("toggle-managed", {
+    chrome.contextMenus.update("toggle-managed", {
       checked: isManaged
     });
     
-    browser.contextMenus.update("keep-muted", {
+    chrome.contextMenus.update("keep-muted", {
       enabled: !isManaged
     });
-    browser.contextMenus.update("keep-unmuted", {
+    chrome.contextMenus.update("keep-unmuted", {
       enabled: !isManaged
     });
   });
 }
 
 // Add back the browserAction click handler
-browser.browserAction.onClicked.addListener((tab) => {
+chrome.action.onClicked.addListener((tab) => {
   const hostname = getHostname(tab.url);
   const wasManaged = isTabManaged(hostname, tab.id);
   
@@ -245,7 +244,7 @@ browser.browserAction.onClicked.addListener((tab) => {
       state.includedTabs.delete(tab.id);
     }
     state.excludedTabs.add(tab.id);
-    browser.tabs.update(tab.id, { muted: false });
+    chrome.tabs.update(tab.id, { muted: false });
   } else {
     state.excludedTabs.delete(tab.id);
     if (state.muteSpecificOnly) {
@@ -259,7 +258,7 @@ browser.browserAction.onClicked.addListener((tab) => {
 });
 
 // Add back cleanup for both sets when tabs are closed
-browser.tabs.onRemoved.addListener((tabId) => {
+chrome.tabs.onRemoved.addListener((tabId) => {
   state.excludedTabs.delete(tabId);
   state.includedTabs.delete(tabId);
 });
