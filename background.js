@@ -7,8 +7,31 @@ let state = {
   includedTabs: new Set()
 };
 
-// Initialize the extension when the service worker starts
-chrome.runtime.onInstalled.addListener(() => {
+// Add this new function to load state
+async function loadState() {
+  const result = await chrome.storage.local.get([
+    "excludedDomains", 
+    "includedDomains", 
+    "muteSpecificOnly"
+  ]);
+  
+  state.excludedDomains = result.excludedDomains || [];
+  state.includedDomains = result.includedDomains || [];
+  state.muteSpecificOnly = result.muteSpecificOnly || false;
+  
+  // Re-apply mute states after loading
+  chrome.tabs.query({ active: true, currentWindow: true })
+    .then(tabs => {
+      if (tabs[0]) {
+        updateTabMutes(tabs[0].id);
+        updateIcon(tabs[0].id);
+        updateContextMenuState(tabs[0].id);
+      }
+    });
+}
+
+// Modify the initialization listener
+chrome.runtime.onInstalled.addListener(async () => {
   // Create context menu items
   chrome.contextMenus.create({
     id: "open-options",
@@ -36,12 +59,16 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 
   // Load initial state
-  chrome.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
-    state.excludedDomains = result.excludedDomains || [];
-    state.includedDomains = result.includedDomains || [];
-    state.muteSpecificOnly = result.muteSpecificOnly || false;
-  });
+  await loadState();
 });
+
+// Add service worker wake-up listener
+chrome.runtime.onStartup.addListener(loadState);
+
+// Add this to handle service worker waking up
+if (chrome.runtime?.id) { // Check if extension context exists
+  loadState();
+}
 
 // Update the context menu click handler
 chrome.contextMenus.onClicked.addListener((info, tab) => {
