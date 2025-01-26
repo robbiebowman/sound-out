@@ -12,22 +12,55 @@ async function loadState() {
   const result = await chrome.storage.local.get([
     "excludedDomains", 
     "includedDomains", 
-    "muteSpecificOnly"
+    "muteSpecificOnly",
+    "excludedTabsArray",  // Add these new items
+    "includedTabsArray"
   ]);
   
   state.excludedDomains = result.excludedDomains || [];
   state.includedDomains = result.includedDomains || [];
   state.muteSpecificOnly = result.muteSpecificOnly || false;
   
-  // Re-apply mute states after loading
-  chrome.tabs.query({ active: true, currentWindow: true })
-    .then(tabs => {
-      if (tabs[0]) {
-        updateTabMutes(tabs[0].id);
-        updateIcon(tabs[0].id);
-        updateContextMenuState(tabs[0].id);
-      }
-    });
+  // Restore tab-specific states
+  state.excludedTabs = new Set(result.excludedTabsArray || []);
+  state.includedTabs = new Set(result.includedTabsArray || []);
+  
+  // Get all tabs
+  const allTabs = await chrome.tabs.query({});
+  
+  // Clean up any stored tab IDs that no longer exist
+  const existingTabIds = new Set(allTabs.map(tab => tab.id));
+  state.excludedTabs = new Set([...state.excludedTabs].filter(id => existingTabIds.has(id)));
+  state.includedTabs = new Set([...state.includedTabs].filter(id => existingTabIds.has(id)));
+  
+  // Save the cleaned up sets
+  await saveTabStates();
+  
+  // Update states for all windows
+  const tabsByWindow = allTabs.reduce((acc, tab) => {
+    if (!acc[tab.windowId]) {
+      acc[tab.windowId] = [];
+    }
+    acc[tab.windowId].push(tab);
+    return acc;
+  }, {});
+  
+  Object.values(tabsByWindow).forEach(windowTabs => {
+    const activeTab = windowTabs.find(tab => tab.active);
+    if (activeTab) {
+      updateTabMutes(activeTab.id);
+      updateIcon(activeTab.id);
+      updateContextMenuState(activeTab.id);
+    }
+  });
+}
+
+// Add this new function to save tab states
+async function saveTabStates() {
+  await chrome.storage.local.set({
+    excludedTabsArray: Array.from(state.excludedTabs),
+    includedTabsArray: Array.from(state.includedTabs)
+  });
 }
 
 // Modify the initialization listener
@@ -262,7 +295,7 @@ function updateContextMenuState(tabId) {
 }
 
 // Add back the browserAction click handler
-chrome.action.onClicked.addListener((tab) => {
+chrome.action.onClicked.addListener(async (tab) => {
   const hostname = getHostname(tab.url);
   const wasManaged = isTabManaged(hostname, tab.id);
   
@@ -280,13 +313,15 @@ chrome.action.onClicked.addListener((tab) => {
     updateTabMutes(tab.id);
   }
   
+  await saveTabStates();  // Save after modifying the sets
   updateIcon(tab.id);
   updateContextMenuState(tab.id);
 });
 
 // Add back cleanup for both sets when tabs are closed
-chrome.tabs.onRemoved.addListener((tabId) => {
+chrome.tabs.onRemoved.addListener(async (tabId) => {
   state.excludedTabs.delete(tabId);
   state.includedTabs.delete(tabId);
+  await saveTabStates();  // Save after removing from sets
 });
   
