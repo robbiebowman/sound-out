@@ -7,16 +7,14 @@ let state = {
   includedTabs: new Set()
 };
 
-// NEW: Track when state has finished loading
 let stateLoaded = false;
 
-// Add this new function to load state
 async function loadState() {
   const result = await chrome.storage.local.get([
     "excludedDomains", 
     "includedDomains", 
     "muteSpecificOnly",
-    "excludedTabsArray",  // Add these new items
+    "excludedTabsArray",
     "includedTabsArray"
   ]);
   
@@ -250,31 +248,63 @@ function getHostname(url) {
 
 // Core functionality: determine if a tab should be managed
 function isTabManaged(hostname, tabId) {
+  console.log("[Debug] isTabManaged called:", { hostname, tabId });
+
   // Check manual overrides first
-  if (state.excludedTabs.has(tabId)) return false;
-  if (state.includedTabs.has(tabId)) return true;
-  
+  if (state.excludedTabs.has(tabId)) {
+    console.log(`[Debug] Tab #${tabId} is in excludedTabs => Not Managed.`);
+    return false;
+  }
+  if (state.includedTabs.has(tabId)) {
+    console.log(`[Debug] Tab #${tabId} is in includedTabs => Managed.`);
+    return true;
+  }
+
   // Then check domain rules
+  console.log("[Debug] Checking domain rules for:", hostname);
+  console.log("> muteSpecificOnly =", state.muteSpecificOnly);
+  console.log("> includedDomains =", state.includedDomains);
+  console.log("> excludedDomains =", state.excludedDomains);
+
   const matchesDomain = (domain) => {
+    // Log each domain check
+    console.log(`[Debug]   Checking if hostname="${hostname}" matches domain="${domain}"...`);
     domain = domain.toLowerCase();
-    hostname = hostname.toLowerCase();
-    return hostname === domain || hostname.endsWith(`.${domain}`);
+    const lowerHostname = hostname.toLowerCase();
+    const isMatch = (lowerHostname === domain || lowerHostname.endsWith(`.${domain}`));
+    console.log(`[Debug]   => ${isMatch ? "Match" : "No match"}`);
+    return isMatch;
   };
 
-  return state.muteSpecificOnly
-    ? state.includedDomains.some(matchesDomain)
-    : !state.excludedDomains.some(matchesDomain);
+  const isIncluded = state.includedDomains.some(matchesDomain);
+  const isExcluded = state.excludedDomains.some(matchesDomain);
+
+  const result = state.muteSpecificOnly ? isIncluded : !isExcluded;
+  console.log(`[Debug] => isTabManaged result: ${result}`);
+  return result;
 }
 
 // Core functionality: update tab mute states
 function updateTabMutes(activeTabId) {
+  console.log("[Debug] updateTabMutes called:", { activeTabId });
   chrome.tabs.query({}).then((tabs) => {
+    console.log("[Debug] Found tabs:", tabs.map(t => ({ id: t.id, url: t.url })));
+
     tabs.forEach((tab) => {
-      if (!tab.id || !tab.url) return;
-      
+      if (!tab.id || !tab.url) {
+        console.log("[Debug] Skipping tab with missing ID or URL:", tab);
+        return;
+      }
       const hostname = getHostname(tab.url);
-      if (isTabManaged(hostname, tab.id)) {
-        chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
+      const managed = isTabManaged(hostname, tab.id);
+      console.log(`[Debug] Tab #${tab.id} (${hostname}) => managed? ${managed}`);
+
+      if (managed) {
+        const shouldMute = (tab.id !== activeTabId);
+        console.log(`[Debug]   => Muting? ${shouldMute}`);
+        chrome.tabs.update(tab.id, { muted: shouldMute });
+      } else {
+        console.log(`[Debug]   => Not managed; skipping.`);
       }
     });
   });
