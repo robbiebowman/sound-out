@@ -7,23 +7,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const inclusionSection = document.getElementById("inclusion-section");
     const saveIndicator = document.getElementById("save-indicator");
   
-    // Load current settings
-    chrome.storage.local.get(["excludedDomains", "includedDomains", "muteSpecificOnly"]).then((result) => {
-      if (result.excludedDomains) {
-        excludedDomainsTextarea.value = result.excludedDomains.join("\n");
+    // Load current settings using callback style
+    chrome.storage.local.get(
+      ["excludedDomains", "includedDomains", "muteSpecificOnly"],
+      (result) => {
+        if (result.excludedDomains) {
+          excludedDomainsTextarea.value = result.excludedDomains.join("\n");
+        }
+        if (result.includedDomains) {
+          includedDomainsTextarea.value = result.includedDomains.join("\n");
+        }
+        if (result.muteSpecificOnly) {
+          muteModeToggle.checked = result.muteSpecificOnly;
+          exclusionSection.classList.add("inactive");
+          inclusionSection.classList.remove("inactive");
+        } else {
+          exclusionSection.classList.remove("inactive");
+          inclusionSection.classList.add("inactive");
+        }
       }
-      if (result.includedDomains) {
-        includedDomainsTextarea.value = result.includedDomains.join("\n");
-      }
-      if (result.muteSpecificOnly) {
-        muteModeToggle.checked = result.muteSpecificOnly;
-        exclusionSection.classList.add("inactive");
-        inclusionSection.classList.remove("inactive");
-      } else {
-        exclusionSection.classList.remove("inactive");
-        inclusionSection.classList.add("inactive");
-      }
-    });
+    );
 
     // Update section visibility based on checkbox
     muteModeToggle.addEventListener("change", () => {
@@ -49,12 +52,12 @@ document.addEventListener("DOMContentLoaded", () => {
         .map(d => d.trim())
         .filter(d => d.length > 0);
   
-      // Save to storage
+      // Save to storage using callback style
       chrome.storage.local.set({ 
         excludedDomains,
         includedDomains,
         muteSpecificOnly: muteModeToggle.checked
-      }).then(() => {
+      }, () => {
         // Show save indicator
         saveIndicator.classList.add("show");
         

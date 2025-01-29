@@ -10,60 +10,65 @@ let state = {
 let stateLoaded = false;
 
 async function loadState() {
-  const result = await chrome.storage.local.get([
-    "excludedDomains", 
-    "includedDomains", 
-    "muteSpecificOnly",
-    "excludedTabsArray",
-    "includedTabsArray"
-  ]);
-  
-  state.excludedDomains = result.excludedDomains || [];
-  state.includedDomains = result.includedDomains || [];
-  state.muteSpecificOnly = result.muteSpecificOnly || false;
-  
-  // Restore tab-specific states
-  state.excludedTabs = new Set(result.excludedTabsArray || []);
-  state.includedTabs = new Set(result.includedTabsArray || []);
-  
-  // Get all tabs
-  const allTabs = await chrome.tabs.query({});
-  
-  // Clean up any stored tab IDs that no longer exist
-  const existingTabIds = new Set(allTabs.map(tab => tab.id));
-  state.excludedTabs = new Set([...state.excludedTabs].filter(id => existingTabIds.has(id)));
-  state.includedTabs = new Set([...state.includedTabs].filter(id => existingTabIds.has(id)));
-  
-  // Save the cleaned up sets
-  await saveTabStates();
-  
-  // Update states for all windows
-  const tabsByWindow = allTabs.reduce((acc, tab) => {
-    if (!acc[tab.windowId]) {
-      acc[tab.windowId] = [];
-    }
-    acc[tab.windowId].push(tab);
-    return acc;
-  }, {});
-  
-  Object.values(tabsByWindow).forEach(windowTabs => {
-    const activeTab = windowTabs.find(tab => tab.active);
-    if (activeTab) {
-      updateTabMutes(activeTab.id);
-      updateIcon(activeTab.id);
-      updateContextMenuState(activeTab.id);
-    }
-  });
+  return new Promise((resolve) => {
+    chrome.storage.local.get([
+      "excludedDomains", 
+      "includedDomains", 
+      "muteSpecificOnly",
+      "excludedTabsArray",
+      "includedTabsArray"
+    ], (result) => {
+      state.excludedDomains = result.excludedDomains || [];
+      state.includedDomains = result.includedDomains || [];
+      state.muteSpecificOnly = result.muteSpecificOnly || false;
+      
+      // Restore tab-specific states
+      state.excludedTabs = new Set(result.excludedTabsArray || []);
+      state.includedTabs = new Set(result.includedTabsArray || []);
+      
+      // Get all tabs
+      chrome.tabs.query({}, (allTabs) => {
+        // Clean up any stored tab IDs that no longer exist
+        const existingTabIds = new Set(allTabs.map(tab => tab.id));
+        state.excludedTabs = new Set([...state.excludedTabs].filter(id => existingTabIds.has(id)));
+        state.includedTabs = new Set([...state.includedTabs].filter(id => existingTabIds.has(id)));
+        
+        // Save the cleaned up sets
+        saveTabStates();
+        
+        // Update states for all windows
+        const tabsByWindow = allTabs.reduce((acc, tab) => {
+          if (!acc[tab.windowId]) {
+            acc[tab.windowId] = [];
+          }
+          acc[tab.windowId].push(tab);
+          return acc;
+        }, {});
+        
+        Object.values(tabsByWindow).forEach(windowTabs => {
+          const activeTab = windowTabs.find(tab => tab.active);
+          if (activeTab) {
+            updateTabMutes(activeTab.id);
+            updateIcon(activeTab.id);
+            updateContextMenuState(activeTab.id);
+          }
+        });
 
-  // Indicate that we've finished loading
-  stateLoaded = true;
+        // Indicate that we've finished loading
+        stateLoaded = true;
+        resolve();
+      });
+    });
+  });
 }
 
 // Add this new function to save tab states
-async function saveTabStates() {
-  await chrome.storage.local.set({
-    excludedTabsArray: Array.from(state.excludedTabs),
-    includedTabsArray: Array.from(state.includedTabs)
+function saveTabStates() {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({
+      excludedTabsArray: Array.from(state.excludedTabs),
+      includedTabsArray: Array.from(state.includedTabs)
+    }, resolve);
   });
 }
 
@@ -99,12 +104,14 @@ async function init() {
   chrome.tabs.onRemoved.addListener(onTabRemoved);
 
   // 2) Now that we have *real* state, update the current active tab
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (activeTab) {
-    updateTabMutes(activeTab.id);
-    updateIcon(activeTab.id);
-    updateContextMenuState(activeTab.id);
-  }
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const activeTab = tabs[0];
+    if (activeTab) {
+      updateTabMutes(activeTab.id);
+      updateIcon(activeTab.id);
+      updateContextMenuState(activeTab.id);
+    }
+  });
 }
 
 // 3) Use normal event callbacks that check "stateLoaded" if needed:
@@ -150,8 +157,12 @@ function onStorageChanged(changes, area) {
   Object.entries(changes).forEach(([key, { newValue }]) => {
     state[key] = newValue;
   });
-  chrome.tabs.query({ active: true, currentWindow: true })
-    .then(tabs => tabs[0] && updateTabMutes(tabs[0].id));
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const activeTab = tabs[0];
+    if (activeTab) {
+      updateTabMutes(activeTab.id);
+    }
+  });
 }
 
 function onTabActivated({ tabId }) {
@@ -163,24 +174,20 @@ function onTabActivated({ tabId }) {
 
 function onTabCreated(tab) {
   if (!stateLoaded) return;
-  chrome.tabs.query({ active: true, currentWindow: true }).then((activeTabs) => {
+  chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
     const activeTabId = activeTabs[0].id;
     const hostname = getHostname(tab.url);
 
     if (state.muteSpecificOnly) {
-      // Only manage new tabs that are in the inclusion list
       if (isTabManaged(hostname, tab.id)) {
         chrome.tabs.update(tab.id, { 
           muted: tab.id !== activeTabId 
         });
       }
-      // Don't touch other tabs
     } else {
-      // Only manage new non-excluded tabs
       if (!isTabManaged(hostname, tab.id)) {
         chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
       }
-      // Don't touch excluded domains
     }
   });
 }
@@ -207,23 +214,23 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "open-options",
     title: "Options",
-    contexts: ["action"]
+    contexts: ["browser_action"]
   });
   chrome.contextMenus.create({
     id: "toggle-managed",
     title: "Tab is managed",
     type: "checkbox",
-    contexts: ["action"]
+    contexts: ["browser_action"]
   });
   chrome.contextMenus.create({
     id: "keep-muted",
     title: "Keep muted",
-    contexts: ["action"]
+    contexts: ["browser_action"]
   });
   chrome.contextMenus.create({
     id: "keep-unmuted",
     title: "Keep unmuted",
-    contexts: ["action"]
+    contexts: ["browser_action"]
   });
   
   init();
@@ -287,7 +294,7 @@ function isTabManaged(hostname, tabId) {
 // Core functionality: update tab mute states
 function updateTabMutes(activeTabId) {
   console.log("[Debug] updateTabMutes called:", { activeTabId });
-  chrome.tabs.query({}).then((tabs) => {
+  chrome.tabs.query({}, (tabs) => {
     console.log("[Debug] Found tabs:", tabs.map(t => ({ id: t.id, url: t.url })));
 
     tabs.forEach((tab) => {
@@ -310,12 +317,15 @@ function updateTabMutes(activeTabId) {
   });
 }
 
-// UI feedback: update extension icon
+// Replace browserAction with action for Chrome compatibility
+const browserAPI = chrome.browserAction || chrome.action;
+
+// Update the updateIcon function
 function updateIcon(tabId) {
-  chrome.tabs.get(tabId).then((tab) => {
+  chrome.tabs.get(tabId, (tab) => {
     const hostname = getHostname(tab.url);
     const iconState = isTabManaged(hostname, tabId) ? 'on' : 'off';
-    chrome.action.setIcon({
+    browserAPI.setIcon({
       path: {
         16: `icons/icon_${iconState}16.png`,
         32: `icons/icon_${iconState}32.png`
@@ -327,7 +337,7 @@ function updateIcon(tabId) {
 
 // Add function to update context menu items' enabled state
 function updateContextMenuState(tabId) {
-  chrome.tabs.get(tabId).then((tab) => {
+  chrome.tabs.get(tabId, (tab) => {
     const hostname = getHostname(tab.url);
     const isManaged = isTabManaged(hostname, tabId);
     
@@ -344,8 +354,8 @@ function updateContextMenuState(tabId) {
   });
 }
 
-// Add back the browserAction click handler
-chrome.action.onClicked.addListener(async (tab) => {
+// Replace chrome.browserAction.onClicked with browserAPI.onClicked
+browserAPI.onClicked.addListener((tab) => {
   const hostname = getHostname(tab.url);
   const wasManaged = isTabManaged(hostname, tab.id);
   
@@ -363,8 +373,9 @@ chrome.action.onClicked.addListener(async (tab) => {
     updateTabMutes(tab.id);
   }
   
-  await saveTabStates();  // Save after modifying the sets
-  updateIcon(tab.id);
-  updateContextMenuState(tab.id);
+  saveTabStates().then(() => {
+    updateIcon(tab.id);
+    updateContextMenuState(tab.id);
+  });
 });
   
