@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Sound Out - Options</title>
+  <style>
+    body {
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 0 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .mode-section {
+      transition: opacity 0.3s ease;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+
+    .inactive {
+      opacity: 0.4;
+    }
+
+    textarea {
+      width: 100%;
+      font-family: monospace;
+    }
+
+    .mode-toggle {
+      margin: 20px 0;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+
+    button {
+      background: #0060df;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0250bb;
+    }
+
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+    }
+
+    .save-indicator {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #2ecc71;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 4px;
+      transform: translateY(100px);
+      transition: transform 0.3s ease;
+    }
+
+    .save-indicator.show {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <h1>Sound Out - Options</h1>
+  
+  <div class="mode-toggle">
+    <label>
+      <input type="checkbox" id="mute-mode-toggle">
+      Only mute specific domains (inclusion mode) instead of muting everything by default
+    </label>
+  </div>
+  
+  <div id="exclusion-section" class="mode-section">
+    <h2>Never Mute These Domains:</h2>
+    <p>Enter a list of domains that should never be muted. One domain per line, e.g.:</p>
+    <pre>spotify.com
+music.apple.com
+soundcloud.com
+pandora.com</pre>
+    <textarea id="excluded-domains" rows="8" cols="40"></textarea>
+  </div>
+
+  <div id="inclusion-section" class="mode-section">
+    <h2>Only Mute These Domains:</h2>
+    <p>Enter a list of domains that should be muted when inactive. One domain per line, e.g.:</p>
+    <pre>youtube.com
+netflix.com</pre>
+    <textarea id="included-domains" rows="8" cols="40"></textarea>
+  </div>
+  
+  <div style="margin-top: 20px;">
+    <button id="save-button">Save Settings</button>
+  </div>
+  
+  <div id="save-indicator" class="save-indicator">Settings saved!</div>
+  
+  <script src="options.js"></script>
+</body>
+</html>

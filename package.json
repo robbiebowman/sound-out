@@ -1,0 +1,12 @@
+{
+  "name": "sound-out",
+  "version": "1.0.0",
+  "description": "Sound Out automatically manages audio across browser tabs to prevent multiple tabs from playing sound simultaneously. Works in both Firefox and Chrome browsers.",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

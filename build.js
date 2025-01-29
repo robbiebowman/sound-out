@@ -1,21 +1,46 @@
 const fs = require('fs');
+const path = require('path');
 
-// Get target browser from command line argument
-const targetBrowser = process.argv[2];
+const browser = process.argv[2];
 
-if (!targetBrowser || !['chrome', 'firefox'].includes(targetBrowser)) {
-  console.error('Please specify target browser: node build.js [chrome|firefox]');
+if (!browser || !['chrome', 'firefox'].includes(browser)) {
+  console.error('Please specify browser: node build.js [chrome|firefox]');
   process.exit(1);
 }
 
-// Copy the appropriate manifest
-const sourceFile = `manifest.${targetBrowser}.json`;
-const targetFile = 'manifest.json';
+// Read the appropriate manifest
+const manifestPath = `manifest.${browser}.json`;
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-try {
-  fs.copyFileSync(sourceFile, targetFile);
-  console.log(`Successfully created manifest.json for ${targetBrowser}`);
-} catch (err) {
-  console.error(`Error creating manifest.json: ${err.message}`);
-  process.exit(1);
-} 
+// Create dist directory if it doesn't exist
+const distDir = path.join(__dirname, 'dist', browser);
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir, { recursive: true });
+}
+
+// Copy manifest
+fs.writeFileSync(
+  path.join(distDir, 'manifest.json'),
+  JSON.stringify(manifest, null, 2)
+);
+
+// Copy other files
+const filesToCopy = [
+  'background.js',
+  'options.js',
+  'options.html',
+  'icons'
+];
+
+filesToCopy.forEach(file => {
+  const src = path.join(__dirname, file);
+  const dest = path.join(distDir, file);
+  
+  if (fs.lstatSync(src).isDirectory()) {
+    fs.cpSync(src, dest, { recursive: true });
+  } else {
+    fs.copyFileSync(src, dest);
+  }
+});
+
+console.log(`Built extension for ${browser} in ${distDir}`); 

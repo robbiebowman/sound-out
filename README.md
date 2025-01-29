@@ -35,7 +35,7 @@ Due to differences in how Firefox and Chrome handle Manifest V3, you'll need to 
    - For Chrome: `node build.js chrome`
    - For Firefox: `node build.js firefox`
 
-This will create the appropriate `manifest.json` file for your target browser.
+This will create a `dist` directory with browser-specific builds.
 
 ## Usage Examples
 
