@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const archiver = require('archiver');
 
 const browser = process.argv[2];
 
@@ -43,4 +44,39 @@ filesToCopy.forEach(file => {
   }
 });
 
-console.log(`Built extension for ${browser} in ${distDir}`); 
+// Create a zip file
+const zipFileName = `sound-out-${browser}-v${manifest.version}.zip`;
+const zipFilePath = path.join(__dirname, 'dist', zipFileName);
+const output = fs.createWriteStream(zipFilePath);
+const archive = archiver('zip', {
+  zlib: { level: 9 } // Maximum compression
+});
+
+// Listen for archive warnings
+archive.on('warning', (err) => {
+  if (err.code === 'ENOENT') {
+    console.warn('Warning while creating zip:', err);
+  } else {
+    throw err;
+  }
+});
+
+// Listen for archive errors
+archive.on('error', (err) => {
+  throw err;
+});
+
+// Pipe archive data to the output file
+archive.pipe(output);
+
+// Add the dist directory contents to the zip
+archive.directory(distDir, false);
+
+// Finalize the archive
+archive.finalize();
+
+output.on('close', () => {
+  const sizeMB = (archive.pointer() / 1024 / 1024).toFixed(2);
+  console.log(`Built extension for ${browser} in ${distDir}`);
+  console.log(`Created ${zipFileName} (${sizeMB} MB)`);
+}); 
