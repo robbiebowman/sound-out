@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const excludedDomainsTextarea = document.getElementById("excluded-domains");
     const includedDomainsTextarea = document.getElementById("included-domains");
     const muteModeToggle = document.getElementById("mute-mode-toggle");
+    const stickyModeToggle = document.getElementById("sticky-mode-toggle");
     const saveButton = document.getElementById("save-button");
     const exclusionSection = document.getElementById("exclusion-section");
     const inclusionSection = document.getElementById("inclusion-section");
@@ -9,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
     // Load current settings using callback style
     chrome.storage.local.get(
-      ["excludedDomains", "includedDomains", "muteSpecificOnly"],
+      ["excludedDomains", "includedDomains", "muteSpecificOnly", "stickyMode"],
       (result) => {
         if (result.excludedDomains) {
           excludedDomainsTextarea.value = result.excludedDomains.join("\n");
@@ -24,6 +25,9 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           exclusionSection.classList.remove("inactive");
           inclusionSection.classList.add("inactive");
+        }
+        if (result.stickyMode) {
+          stickyModeToggle.checked = result.stickyMode;
         }
       }
     );
@@ -56,7 +60,8 @@ document.addEventListener("DOMContentLoaded", () => {
       chrome.storage.local.set({ 
         excludedDomains,
         includedDomains,
-        muteSpecificOnly: muteModeToggle.checked
+        muteSpecificOnly: muteModeToggle.checked,
+        stickyMode: stickyModeToggle.checked
       }, () => {
         // Show save indicator
         saveIndicator.classList.add("show");

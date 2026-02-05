@@ -3,11 +3,13 @@ let state = {
   excludedDomains: [],
   includedDomains: [],
   muteSpecificOnly: false,
+  stickyMode: false,
   excludedTabs: new Set(),
   includedTabs: new Set()
 };
 
 let stateLoaded = false;
+const lastManagedByWindow = new Map();
 
 async function loadState() {
   return new Promise((resolve) => {
@@ -15,12 +17,14 @@ async function loadState() {
       "excludedDomains", 
       "includedDomains", 
       "muteSpecificOnly",
+      "stickyMode",
       "excludedTabsArray",
       "includedTabsArray"
     ], (result) => {
       state.excludedDomains = result.excludedDomains || [];
       state.includedDomains = result.includedDomains || [];
       state.muteSpecificOnly = result.muteSpecificOnly || false;
+      state.stickyMode = result.stickyMode || false;
       
       // Restore tab-specific states
       state.excludedTabs = new Set(result.excludedTabsArray || []);
@@ -48,7 +52,7 @@ async function loadState() {
         Object.values(tabsByWindow).forEach(windowTabs => {
           const activeTab = windowTabs.find(tab => tab.active);
           if (activeTab) {
-            updateTabMutes(activeTab.id);
+            updateTabMutes(activeTab.id, activeTab.windowId);
             updateIcon(activeTab.id);
             updateContextMenuState(activeTab.id);
           }
@@ -107,7 +111,7 @@ async function init() {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const activeTab = tabs[0];
     if (activeTab) {
-      updateTabMutes(activeTab.id);
+      updateTabMutes(activeTab.id, activeTab.windowId);
       updateIcon(activeTab.id);
       updateContextMenuState(activeTab.id);
     }
@@ -134,7 +138,7 @@ function onContextMenuClicked(info, tab) {
       if (state.muteSpecificOnly) {
         state.includedTabs.add(tab.id);
       }
-      updateTabMutes(tab.id);
+      updateTabMutes(tab.id, tab.windowId);
     }
     
     updateIcon(tab.id);
@@ -160,34 +164,43 @@ function onStorageChanged(changes, area) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const activeTab = tabs[0];
     if (activeTab) {
-      updateTabMutes(activeTab.id);
+      updateTabMutes(activeTab.id, activeTab.windowId);
     }
   });
 }
 
-function onTabActivated({ tabId }) {
+function onTabActivated({ tabId, windowId }) {
   if (!stateLoaded) return;
-  updateTabMutes(tabId);
+  updateTabMutes(tabId, windowId);
   updateIcon(tabId);
   updateContextMenuState(tabId);
 }
 
 function onTabCreated(tab) {
   if (!stateLoaded) return;
-  chrome.tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
-    const activeTabId = activeTabs[0].id;
+  chrome.tabs.query({ active: true, windowId: tab.windowId }, (activeTabs) => {
+    const activeTabId = activeTabs[0]?.id;
     const hostname = getHostname(tab.url);
 
-    if (state.muteSpecificOnly) {
-      if (isTabManaged(hostname, tab.id)) {
-        chrome.tabs.update(tab.id, { 
-          muted: tab.id !== activeTabId 
-        });
+    if (state.stickyMode) {
+      if (activeTabId && isTabManaged(hostname, tab.id) && tab.id !== activeTabId) {
+        const lastManaged = lastManagedByWindow.get(tab.windowId);
+        if (lastManaged && lastManaged !== tab.id) {
+          chrome.tabs.update(tab.id, { muted: true });
+        }
       }
-    } else {
-      if (!isTabManaged(hostname, tab.id)) {
+      return;
+    }
+
+    if (state.muteSpecificOnly) {
+      if (activeTabId && isTabManaged(hostname, tab.id)) {
         chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
       }
+      return;
+    }
+
+    if (activeTabId && !isTabManaged(hostname, tab.id)) {
+      chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
     }
   });
 }
@@ -204,6 +217,11 @@ async function onTabRemoved(tabId) {
   if (!stateLoaded) return;
   state.excludedTabs.delete(tabId);
   state.includedTabs.delete(tabId);
+  for (const [windowId, managedTabId] of lastManagedByWindow.entries()) {
+    if (managedTabId === tabId) {
+      lastManagedByWindow.delete(windowId);
+    }
+  }
   await saveTabStates();
 }
 
@@ -292,10 +310,42 @@ function isTabManaged(hostname, tabId) {
 }
 
 // Core functionality: update tab mute states
-function updateTabMutes(activeTabId) {
-  console.log("[Debug] updateTabMutes called:", { activeTabId });
-  chrome.tabs.query({}, (tabs) => {
+function updateTabMutes(activeTabId, activeWindowId) {
+  console.log("[Debug] updateTabMutes called:", { activeTabId, activeWindowId });
+  const query = typeof activeWindowId === "number" ? { windowId: activeWindowId } : {};
+
+  chrome.tabs.query(query, (tabs) => {
     console.log("[Debug] Found tabs:", tabs.map(t => ({ id: t.id, url: t.url })));
+    const activeTab = tabs.find(tab => tab.id === activeTabId);
+
+    if (state.stickyMode) {
+      if (!activeTab || !activeTab.url) {
+        return;
+      }
+
+      const activeHostname = getHostname(activeTab.url);
+      const activeManaged = isTabManaged(activeHostname, activeTab.id);
+
+      if (!activeManaged) {
+        return;
+      }
+
+      if (typeof activeWindowId === "number") {
+        lastManagedByWindow.set(activeWindowId, activeTabId);
+      }
+
+      tabs.forEach((tab) => {
+        if (!tab.id || !tab.url) {
+          return;
+        }
+        const hostname = getHostname(tab.url);
+        const managed = isTabManaged(hostname, tab.id);
+        if (managed) {
+          chrome.tabs.update(tab.id, { muted: tab.id !== activeTabId });
+        }
+      });
+      return;
+    }
 
     tabs.forEach((tab) => {
       if (!tab.id || !tab.url) {
@@ -370,7 +420,7 @@ browserAPI.onClicked.addListener((tab) => {
     if (state.muteSpecificOnly) {
       state.includedTabs.add(tab.id);
     }
-    updateTabMutes(tab.id);
+    updateTabMutes(tab.id, tab.windowId);
   }
   
   saveTabStates().then(() => {
